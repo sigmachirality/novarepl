@@ -2,51 +2,6 @@ declare module "circom2-pasta/vendor/wasi" {
     export * from "@wasmer/wasi"
 }
 
-declare module "snarkjs" {
-    export const zKey: {
-        verifyFromR1cs(
-            r1csFileName: any,
-            pTauFileName: any,
-            zkeyFileName: any,
-            logger?: any
-        ): Promise<boolean>
-        verifyFromInit(
-            initFileName: any,
-            pTauFileName: any,
-            zkeyFileName: any,
-            logger?: any
-        ): Promise<boolean>
-        newZKey(
-            r1csName: any,
-            ptauName: any,
-            zkeyName: any,
-            logger?: any
-        ): Promise<any>
-        exportVerificationKey(zkeyName: any): Promise<any>
-        exportJson(zkeyName: any): Promise<any>
-        exportSolidityVerifier(
-            zkeyName: any,
-            templates: any,
-            logger?: any
-        ): Promise<any>
-        contribute(
-            zKeyName: any,
-            newzKeyName: any,
-            name: string,
-            entropy: any
-        ): Promise<any>
-    }
-
-    export const plonk: {
-        setup(
-            r1csName: any,
-            ptauName: any,
-            zkeyName: any,
-            logger?: any
-        ): Promise<any>
-    }
-}
-
 declare module "buffer-es6" {
     export * from "buffer"
 }

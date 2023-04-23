@@ -10,9 +10,7 @@ import { R1CSHeader, readR1csHeader } from "r1csfile"
 import { Scalar } from "ffjavascript"
 import groth16SolidityVerifierTemplate from "../data/groth16.sol?raw"
 import plonkSolidityVerifierTemplate from "../data/plonk.sol?raw"
-import snarkJsTemplate from "../data/snarkjs.min.js?raw"
 import appTemplate from "../data/demo.html?raw"
-import { zKey, plonk } from "snarkjs"
 
 let wtnsFile: Uint8Array
 let filePrefix: string
@@ -292,16 +290,16 @@ onmessage = (e: MessageEvent) => {
             console.log("hover err", err)
             postMessage({ type: "hover", text: "" })
         })
-    } else if (data.type === "groth16") {
-        zkreplURL = data.url
-        generateGroth16ProvingKey().catch((err) => {
-            postMessage({ type: "fail", done: true, text: err.message })
-        })
-    } else if (data.type === "plonk") {
-        zkreplURL = data.url
-        generatePLONKProvingKey().catch((err) => {
-            postMessage({ type: "fail", done: true, text: err.message })
-        })
+    // } else if (data.type === "groth16") {
+    //     zkreplURL = data.url
+    //     generateGroth16ProvingKey().catch((err) => {
+    //         postMessage({ type: "fail", done: true, text: err.message })
+    //     })
+    // } else if (data.type === "plonk") {
+    //     zkreplURL = data.url
+    //     generatePLONKProvingKey().catch((err) => {
+    //         postMessage({ type: "fail", done: true, text: err.message })
+    //     })
     } else if (data.type === "verify") {
         verifyZKey(data.data).catch((err) => {
             postMessage({ type: "fail", done: true, text: err.message })
@@ -386,37 +384,37 @@ function circomSize(r1cs: R1CSHeader) {
     return 4 * 3 * r1cs.nConstraints + r1cs.nPubInputs + r1cs.nOutputs
 }
 
-async function generatePLONKProvingKey() {
-    const { r1cs, r1csFile } = await getR1CS()
-    // TODO: be better at estimating pTau size?
-    const ptauArray = await fetchPot(circomSize(r1cs))
+// async function generatePLONKProvingKey() {
+//     const { r1cs, r1csFile } = await getR1CS()
+//     // TODO: be better at estimating pTau size?
+//     const ptauArray = await fetchPot(circomSize(r1cs))
 
-    const zkFile = { type: "mem", data: null }
-    const [logger, zKeyLog] = createLogger()
-    await plonk.setup(r1csFile, ptauArray, zkFile, logger)
+//     const zkFile = { type: "mem", data: null }
+//     const [logger, zKeyLog] = createLogger()
+//     await plonk.setup(r1csFile, ptauArray, zkFile, logger)
 
-    const vkeyResult = JSON.stringify(
-        await zKey.exportVerificationKey(zkFile.data),
-        null,
-        "  "
-    )
-    const solidityProver = await zKey.exportSolidityVerifier(zkFile.data, {
-        plonk: plonkSolidityVerifierTemplate,
-    })
-    postMessage({
-        type: "plonk keys",
-        done: true,
-        files: {
-            [filePrefix + ".plonk.zkey"]: zkFile.data,
-            [filePrefix + ".plonk.vkey.json"]: vkeyResult,
-            [filePrefix + ".plonk.sol"]: solidityProver,
-            [filePrefix + ".plonk.html"]: await generateSnarkTemplate(
-                zkFile,
-                vkeyResult
-            ),
-        },
-    })
-}
+//     const vkeyResult = JSON.stringify(
+//         await zKey.exportVerificationKey(zkFile.data),
+//         null,
+//         "  "
+//     )
+//     const solidityProver = await zKey.exportSolidityVerifier(zkFile.data, {
+//         plonk: plonkSolidityVerifierTemplate,
+//     })
+//     postMessage({
+//         type: "plonk keys",
+//         done: true,
+//         files: {
+//             [filePrefix + ".plonk.zkey"]: zkFile.data,
+//             [filePrefix + ".plonk.vkey.json"]: vkeyResult,
+//             [filePrefix + ".plonk.sol"]: solidityProver,
+//             [filePrefix + ".plonk.html"]: await generateSnarkTemplate(
+//                 zkFile,
+//                 vkeyResult
+//             ),
+//         },
+//     })
+// }
 
 async function generateSnarkTemplate(
     zkFile: { data: any },
@@ -472,49 +470,49 @@ function createLogger(): [Logger, string[]] {
     return [logger, zKeyLog]
 }
 
-async function generateGroth16ProvingKey() {
-    const { r1cs, r1csFile } = await getR1CS()
+// async function generateGroth16ProvingKey() {
+//     const { r1cs, r1csFile } = await getR1CS()
 
-    const ptauArray = await fetchPot(r1cs.nConstraints)
-    const zkFile0 = { type: "mem", data: null }
-    const [logger, zKeyLog] = createLogger()
-    const circuitHash = await zKey.newZKey(r1csFile, ptauArray, zkFile0, logger)
+//     const ptauArray = await fetchPot(r1cs.nConstraints)
+//     const zkFile0 = { type: "mem", data: null }
+//     const [logger, zKeyLog] = createLogger()
+//     const circuitHash = await zKey.newZKey(r1csFile, ptauArray, zkFile0, logger)
 
-    const zkFile = { type: "mem", data: null }
-    const entropy = globalThis.crypto.getRandomValues(new Uint8Array(512))
-    const contributedZKey = await zKey.contribute(
-        zkFile0.data,
-        zkFile,
-        "zkrepl",
-        entropy
-    )
-    console.log("ZKEY", circuitHash, zkFile, contributedZKey)
+//     const zkFile = { type: "mem", data: null }
+//     const entropy = globalThis.crypto.getRandomValues(new Uint8Array(512))
+//     const contributedZKey = await zKey.contribute(
+//         zkFile0.data,
+//         zkFile,
+//         "zkrepl",
+//         entropy
+//     )
+//     console.log("ZKEY", circuitHash, zkFile, contributedZKey)
 
-    const vkeyResult = JSON.stringify(
-        await zKey.exportVerificationKey(zkFile.data),
-        null,
-        "  "
-    )
+//     const vkeyResult = JSON.stringify(
+//         await zKey.exportVerificationKey(zkFile.data),
+//         null,
+//         "  "
+//     )
 
-    const solidityProver = await zKey.exportSolidityVerifier(zkFile.data, {
-        groth16: groth16SolidityVerifierTemplate,
-    })
+//     const solidityProver = await zKey.exportSolidityVerifier(zkFile.data, {
+//         groth16: groth16SolidityVerifierTemplate,
+//     })
 
-    const wasmFs = await wasmFsPromise
-    postMessage({
-        type: "groth16 keys",
-        done: true,
-        files: {
-            [filePrefix + ".groth16.zkey"]: zkFile.data,
-            [filePrefix + ".groth16.vkey.json"]: vkeyResult,
-            [filePrefix + ".groth16.sol"]: solidityProver,
-            [filePrefix + ".groth16.html"]: await generateSnarkTemplate(
-                zkFile,
-                vkeyResult
-            ),
-        },
-    })
-}
+//     const wasmFs = await wasmFsPromise
+//     postMessage({
+//         type: "groth16 keys",
+//         done: true,
+//         files: {
+//             [filePrefix + ".groth16.zkey"]: zkFile.data,
+//             [filePrefix + ".groth16.vkey.json"]: vkeyResult,
+//             [filePrefix + ".groth16.sol"]: solidityProver,
+//             [filePrefix + ".groth16.html"]: await generateSnarkTemplate(
+//                 zkFile,
+//                 vkeyResult
+//             ),
+//         },
+//     })
+// }
 
 async function fetchPot(nConstraints: number) {
     const pots = [
