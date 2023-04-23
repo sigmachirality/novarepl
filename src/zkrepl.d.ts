@@ -1,4 +1,4 @@
-declare module "circom2/vendor/wasi" {
+declare module "circom2-pasta/vendor/wasi" {
     export * from "@wasmer/wasi"
 }
 

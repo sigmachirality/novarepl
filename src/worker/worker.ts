@@ -56,6 +56,7 @@ async function bootWasm(files: File[]) {
         nor1cs: flags.includes("nor1cs"),
         nosym: flags.includes("nosym"),
         nowtns: flags.includes("nowtns"),
+        noprime: flags.includes("noprime")
     }
 
     await runCircom(fileName, opts)

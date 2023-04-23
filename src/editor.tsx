@@ -63,7 +63,7 @@ import * as monaco from "monaco-editor/esm/vs/editor/editor.api"
 
 // this is a workaround for what seems to be some kind of bug around
 // importing raw urls from webworkers in production builds
-import wasmURL from "circom2/circom.wasm?url"
+import wasmURL from "circom2-pasta/circom.wasm?url"
 import circomspectWasmURL from "circomspect/circomspect.wasm?url"
 import circomLib from "./data/circomlib.zip?url"
 import type { Log } from "sarif"

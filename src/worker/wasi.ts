@@ -6,7 +6,7 @@
 import { Buffer } from "buffer-es6"
 ;(globalThis as any).Buffer = Buffer
 
-import { WASI, WASIExitError, WASIKillError } from "circom2/vendor/wasi"
+import { WASI, WASIExitError, WASIKillError } from "circom2-pasta/vendor/wasi"
 import * as path from "path-browserify"
 import { WasmFs } from "@wasmer/wasmfs"
 import { unzip } from "unzipit"
@@ -254,6 +254,7 @@ export async function runCircom(
         nosym: false,
         nowasm: false,
         nor1cs: false,
+        noprime: false,
     }
 ) {
     const runLoop = await createFsBindings()
@@ -266,11 +267,13 @@ export async function runCircom(
             // The first argument is usually the filepath to the executable WASI module
             // we want to run.
             args: [
-                "circom2",
+                "circom2-pasta",
                 fileName,
                 !options.nor1cs && "--r1cs",
                 !options.nowasm && "--wasm",
                 !options.nosym && "--sym",
+                !options.noprime && "--prime",
+                'vesta'
             ].filter((k) => k !== false) as string[],
 
             // Environment variables that are accesible to the WASI module
