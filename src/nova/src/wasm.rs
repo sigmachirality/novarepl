@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use ff::PrimeField;
 use nova_scotia::FileLocation;
 use nova_scotia::{
     circom::{circuit::CircomCircuit, reader::load_r1cs},
@@ -10,7 +11,8 @@ use nova_snark::{
     traits::{circuit::TrivialTestCircuit, Group},
     CompressedSNARK, PublicParams,
 };
-use serde_json::json;
+use serde::{Serialize, Deserialize};
+use serde_json::Value;
 use wasm_bindgen::prelude::*;
 
 pub use wasm_bindgen_rayon::init_thread_pool;
@@ -46,38 +48,36 @@ pub fn init_panic_hook() {
     console_error_panic_hook::set_once();
 }
 
-const WEBSITE_ROOT: &str = "https://effulgent-liger-07e9d0.netlify.app/";
+#[derive(Serialize, Deserialize)]
+pub struct ProofInput {
+    pub step_in: Vec<String>,
+    pub witness: Vec<HashMap<String, Value>>
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct VerifyInput {
+    pub step_in: Vec<String>
+}
 
 #[wasm_bindgen]
-pub async fn generate_params() -> String {
-    let r1cs = load_r1cs(&FileLocation::URL(
-        WEBSITE_ROOT.to_string().clone() + &"toy.r1cs".to_string(),
-    ))
-    .await;
+pub async fn generate_params(r1cs_url: String) -> String {
+    let r1cs = load_r1cs(&FileLocation::URL(r1cs_url.clone())).await;
     let pp = create_public_params(r1cs.clone());
     let serialised = serde_json::to_string(&pp).unwrap();
     return serialised;
 }
 
 #[wasm_bindgen]
-pub async fn generate_proof(pp_str: String) -> String {
-    let iteration_count = 5;
+pub async fn generate_proof(
+    pp_str: String,
+    inputs: JsValue,
+    r1cs_url: String,
+    wasm_url: String
+) -> String {
+    let r1cs = load_r1cs(&FileLocation::URL(r1cs_url.clone())).await;
+    let witness_generator_wasm = FileLocation::URL(wasm_url.clone());
 
-    let r1cs = load_r1cs(&FileLocation::URL(
-        WEBSITE_ROOT.to_string().clone() + &"toy.r1cs".to_string(),
-    ))
-    .await;
-    let witness_generator_wasm =
-        FileLocation::URL(WEBSITE_ROOT.to_string().clone() + &"toy.wasm".to_string());
-
-    let mut private_inputs = Vec::new();
-    for i in 0..iteration_count {
-        let mut private_input = HashMap::new();
-        private_input.insert("adder".to_string(), json!(i));
-        private_inputs.push(private_input);
-    }
-
-    let start_public_input = vec![F1::from(10), F1::from(10)];
+    let inputs: ProofInput = serde_wasm_bindgen::from_value(inputs).unwrap();
 
     let pp =
         serde_json::from_str::<PublicParams<G1, G2, CircomCircuit<F1>, TrivialTestCircuit<F2>>>(
@@ -103,12 +103,14 @@ pub async fn generate_proof(pp_str: String) -> String {
         pp.num_variables().1
     );
 
+    let start_public_inputs: Vec<_> = inputs.step_in.iter().map(|x| F1::from_str_vartime(x).unwrap()).collect();
+
     console_log!("Creating a RecursiveSNARK...");
     let recursive_snark = create_recursive_circuit(
         witness_generator_wasm,
         r1cs,
-        private_inputs,
-        start_public_input.clone(),
+        inputs.witness.clone(),
+        start_public_inputs.clone(),
         &pp,
     )
     .await
@@ -121,8 +123,8 @@ pub async fn generate_proof(pp_str: String) -> String {
     console_log!("Verifying a RecursiveSNARK...");
     let res = recursive_snark.verify(
         &pp,
-        iteration_count,
-        start_public_input.clone(),
+        inputs.witness.len(),
+        start_public_inputs.clone(),
         z0_secondary.clone(),
     );
     assert!(res.is_ok());
@@ -137,15 +139,20 @@ pub async fn generate_proof(pp_str: String) -> String {
 }
 
 #[wasm_bindgen]
-pub async fn verify_compressed_proof(pp_str: String, proof_str: String) -> bool {
+pub async fn verify_compressed_proof(
+    pp_str: String,
+    inputs: JsValue,
+    proof_str: String
+) -> bool {
+    let inputs: VerifyInput = serde_wasm_bindgen::from_value(inputs).unwrap();
+
     let pp =
         serde_json::from_str::<PublicParams<G1, G2, CircomCircuit<F1>, TrivialTestCircuit<F2>>>(
             &pp_str,
         )
         .unwrap();
     let (_pk, vk) = CompressedSNARK::<_, _, _, _, S1, S2>::setup(&pp).unwrap();
-    let iteration_count = 5;
-    let start_public_input = vec![F1::from(10), F1::from(10)];
+    let iteration_count = inputs.step_in.len();
     let z0_secondary = vec![<G2 as Group>::Scalar::zero()];
 
     let compressed_proof = serde_json::from_str::<
@@ -159,10 +166,13 @@ pub async fn verify_compressed_proof(pp_str: String, proof_str: String) -> bool 
         >,
     >(&proof_str)
     .unwrap();
+
+    let start_public_inputs: Vec<_> = inputs.step_in.iter().map(|x| F1::from_str_vartime(x).unwrap()).collect();
+
     let res = compressed_proof.verify(
         &vk,
         iteration_count,
-        start_public_input.clone(),
+        start_public_inputs,
         z0_secondary,
     );
     return res.is_ok();
