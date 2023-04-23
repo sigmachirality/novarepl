@@ -1,27 +1,27 @@
 {
-    "name": "zkrepl",
+    "name": "novarepl",
     "version": "1.0.0",
     "description": "",
     "main": "index.js",
     "scripts": {
         "dev": "vite --port 4000",
         "build": "vite build",
-        "deploy": "echo 'zkrepl.dev' > dist/CNAME && gh-pages -d dist",
+        "deploy": "echo 'novarepl.dev' > dist/CNAME && gh-pages -d dist",
         "postinstall": "patch-package"
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/antimatter15/zkrepl.git"
+        "url": "git+https://github.com/sigmachirality/novarepl.git"
     },
     "author": "",
     "license": "GPL-3.0",
     "bugs": {
-        "url": "https://github.com/antimatter15/zkrepl/issues"
+        "url": "https://github.com/sigmachirality/novarepl/issues"
     },
     "resolutions": {
         "ffjavascript": "0.2.56"
     },
-    "homepage": "https://github.com/antimatter15/zkrepl#readme",
+    "homepage": "https://github.com/sigmachirality/novarepl#readme",
     "dependencies": {
         "@iden3/binfileutils": "^0.0.11",
         "@types/lodash": "^4.14.185",
