@@ -91,7 +91,7 @@ async function bootWasm(files: File[]) {
             })
         }
     }
-    let r1cs
+    let r1cs: R1CSHeader | undefined;
     if (!opts.nor1cs) {
         r1csFile = wasmFs.fs.readFileSync(`${filePrefix}.r1cs`)
         const { fd: fdR1cs, sections: sectionsR1cs } =
@@ -111,9 +111,12 @@ async function bootWasm(files: File[]) {
     }
 
     const input = /\/*\s*INPUT\s*=\s*(\{[\s\S]+\})\s*\*\//.exec(mainCode)
-    let inputObj: Record<string, string | string[]> = {}
+    let inputObj: any = {}
+    let numIterations = 1;
     if (input) {
         inputObj = JSON.parse(input[1])
+        const { witness: witnessSignals } = inputObj
+        numIterations = witnessSignals.length
         parsedInputJSON = inputObj
     } else if (r1cs && r1cs.nPrvInputs + r1cs.nPubInputs > 0) {
         postMessage({
@@ -121,66 +124,122 @@ async function bootWasm(files: File[]) {
             text: `To specify inputs, add to your circuit: \n\nINPUT = { "a": "1234" }`,
         })
     }
+
+    async function getOutputs(iteration = 1) {
+        if (r1cs && r1cs.nOutputs > 0) {
+            const { fd: fdWtns, sections: sectionsWtns } =
+                await binFileUtils.readBinFile(
+                    wtnsFile,
+                    "wtns",
+                    2,
+                    1 << 25,
+                    1 << 23
+                )
+    
+            const wtns = await readWtnsHeader(fdWtns, sectionsWtns)
+            const buffWitness = await binFileUtils.readSection(
+                fdWtns,
+                sectionsWtns,
+                2
+            )
+    
+            let outputPrefixes: Record<number, string> = {}
+            if (!opts.nosym) {
+                const symFile = wasmFs.fs.readFileSync(
+                    `${filePrefix}.sym`
+                ) as Uint8Array
+                let lastPos = 0
+                let dec = new TextDecoder("utf-8")
+                for (let i = 0; i < symFile.length; i++) {
+                    if (symFile[i] === 0x0a) {
+                        let line = dec.decode(symFile.slice(lastPos, i))
+                        let wireNo = +line.split(",")[0]
+    
+                        if (wireNo <= r1cs.nOutputs) {
+                            outputPrefixes[wireNo] = line.split(",")[3].replace("main.", "")
+                        }
+    
+                        lastPos = i
+                    }
+                }
+            }
+            let outputSignals = []
+            let outputObj: Record<string, bigint> = {}
+            for (let i = 1; i <= r1cs.nOutputs; i++) {
+                const b = buffWitness.slice(i * wtns.n8, i * wtns.n8 + wtns.n8)
+                const outputPrefix = outputPrefixes[i] || ""
+                outputSignals.push(`${outputPrefix} = ${Scalar.fromRprLE(b).toString()}`)
+                outputObj[outputPrefix] = Scalar.fromRprLE(b)
+            }
+            postMessage({
+                type: `Output (${iteration})`,
+                text: outputSignals.join("\n"),
+            })
+    
+            await fdWtns.close()
+            return outputObj;
+        }
+        return {};
+    }
+
+    // Since the outputs from the witness gen are flattened,
+    // We use the structure of the initialInputs to restructure
+    // the outputs
+    function parseOutputs(
+        input: any,
+        prevOutputs: Record<string, bigint>,
+    ) {
+        const ret: any = {};
+        for (const [signalName, signalInputObj] of Object.entries(input)) {
+            if (Array.isArray(signalInputObj)) {
+                ret[`${signalName}_in`] = signalInputObj.map((v, i) => {
+                    return parseArray(v, prevOutputs, `${signalName}_out[${i}]`)
+                }) 
+            } else {
+                ret[`${signalName}_in`] = prevOutputs[signalName]
+            }
+        }
+        return ret;
+    }
+
+    function parseArray(
+        input: Array<Array<any> | bigint | number> | bigint | number,
+        prevOutputs: Record<string, bigint>,
+        accumKey = ""
+    ): any {
+        if (typeof input === "bigint" || typeof input === "number") {
+            return prevOutputs[accumKey];
+        } else {
+            return input.map((v, i) => parseArray(v, prevOutputs, `${accumKey}[${i}]`))
+        }
+    }
+
     try {
-        if (witness) wtnsFile = await witness.calculateWTNSBin(inputObj, true)
+        if (witness) {
+            const { initial, witness: witnessSignals } = inputObj;
+            for (let i = 0; i < numIterations; i++) {
+                let parsedInputObj: any = { ...witnessSignals[i] ?? {} };
+                if (i === 0) {
+                    Object.keys(initial).forEach(key => {
+                        parsedInputObj[`${key}_in`] = initial[key]
+                    })
+                } else {
+                    const prevOutputs = await getOutputs(i);
+                    const parsedPrevOutputs = parseOutputs(initial, prevOutputs);
+                    console.log(parsedPrevOutputs)
+                    parsedInputObj = { ...parsedInputObj, ...parsedPrevOutputs }
+                }
+                console.log(parsedInputObj);
+                wtnsFile = await witness.calculateWTNSBin(parsedInputObj, true)
+            }
+        }
     } finally {
         if (logs.length > 0) postMessage({ type: "log", text: logs.join("\n") })
     }
 
+    await getOutputs(numIterations);
+
     // console.log(witness)
-
-    if (r1cs && r1cs.nOutputs > 0) {
-        const { fd: fdWtns, sections: sectionsWtns } =
-            await binFileUtils.readBinFile(
-                wtnsFile,
-                "wtns",
-                2,
-                1 << 25,
-                1 << 23
-            )
-
-        const wtns = await readWtnsHeader(fdWtns, sectionsWtns)
-        const buffWitness = await binFileUtils.readSection(
-            fdWtns,
-            sectionsWtns,
-            2
-        )
-
-        let outputPrefixes: Record<number, string> = {}
-        if (!opts.nosym) {
-            const symFile = wasmFs.fs.readFileSync(
-                `${filePrefix}.sym`
-            ) as Uint8Array
-            let lastPos = 0
-            let dec = new TextDecoder("utf-8")
-            for (let i = 0; i < symFile.length; i++) {
-                if (symFile[i] === 0x0a) {
-                    let line = dec.decode(symFile.slice(lastPos, i))
-                    let wireNo = +line.split(",")[0]
-
-                    if (wireNo <= r1cs.nOutputs) {
-                        outputPrefixes[wireNo] =
-                            line.split(",")[3].replace("main.", "") + " = "
-                    }
-
-                    lastPos = i
-                }
-            }
-        }
-        let outputSignals = []
-        for (let i = 1; i <= r1cs.nOutputs; i++) {
-            const b = buffWitness.slice(i * wtns.n8, i * wtns.n8 + wtns.n8)
-            const outputPrefix = outputPrefixes[i] || ""
-            outputSignals.push(outputPrefix + Scalar.fromRprLE(b).toString())
-        }
-        postMessage({
-            type: "Output",
-            text: outputSignals.join("\n"),
-        })
-
-        await fdWtns.close()
-    }
-
     // console.log(r1cs)
     const elapsed = performance.now() - startTime
 
@@ -426,7 +485,7 @@ async function generateSnarkTemplate(
         .replace('"{{INPUT_JSON}}"', JSON.stringify(parsedInputJSON))
         .replace('"{{VKEY_DATA}}"', vkeyResult)
         .replace("{{ZKREPL_URL}}", zkreplURL)
-        .replace("/*{{SNARK_JS}}*/", snarkJsTemplate)
+        // .replace("/*{{SNARK_JS}}*/", snarkJsTemplate)
         .replace(
             "{{ZKEY_DATA}}",
             "data:application/octet-stream;base64," +

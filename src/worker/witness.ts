@@ -178,39 +178,39 @@ class WitnessCalculator {
         }
     }
 
-    async calculateWitness(input, sanityCheck) {
-        const w = []
+    // async calculateWitness(input, sanityCheck) {
+    //     const w = []
 
-        await this._doCalculateWitness(input, sanityCheck)
+    //     await this._doCalculateWitness(input, sanityCheck)
 
-        for (let i = 0; i < this.witnessSize; i++) {
-            this.instance.exports.getWitness(i)
-            const arr = new Uint32Array(this.n32)
-            for (let j = 0; j < this.n32; j++) {
-                arr[this.n32 - 1 - j] =
-                    this.instance.exports.readSharedRWMemory(j)
-            }
-            w.push(fromArray32(arr))
-        }
+    //     for (let i = 0; i < this.witnessSize; i++) {
+    //         this.instance.exports.getWitness(i)
+    //         const arr = new Uint32Array(this.n32)
+    //         for (let j = 0; j < this.n32; j++) {
+    //             arr[this.n32 - 1 - j] =
+    //                 this.instance.exports.readSharedRWMemory(j)
+    //         }
+    //         w.push(fromArray32(arr))
+    //     }
 
-        return w
-    }
+    //     return w
+    // }
 
-    async calculateBinWitness(input, sanityCheck) {
-        const buff32 = new Uint32Array(this.witnessSize * this.n32)
-        const buff = new Uint8Array(buff32.buffer)
-        await this._doCalculateWitness(input, sanityCheck)
+    // async calculateBinWitness(input, sanityCheck) {
+    //     const buff32 = new Uint32Array(this.witnessSize * this.n32)
+    //     const buff = new Uint8Array(buff32.buffer)
+    //     await this._doCalculateWitness(input, sanityCheck)
 
-        for (let i = 0; i < this.witnessSize; i++) {
-            this.instance.exports.getWitness(i)
-            const pos = i * this.n32
-            for (let j = 0; j < this.n32; j++) {
-                buff32[pos + j] = this.instance.exports.readSharedRWMemory(j)
-            }
-        }
+    //     for (let i = 0; i < this.witnessSize; i++) {
+    //         this.instance.exports.getWitness(i)
+    //         const pos = i * this.n32
+    //         for (let j = 0; j < this.n32; j++) {
+    //             buff32[pos + j] = this.instance.exports.readSharedRWMemory(j)
+    //         }
+    //     }
 
-        return buff
-    }
+    //     return buff
+    // }
 
     async calculateWTNSBin(input, sanityCheck) {
         const buff32 = new Uint32Array(

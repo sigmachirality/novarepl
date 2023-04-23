@@ -13,7 +13,7 @@ import { unzip } from "unzipit"
 
 import circomspectWasmURL from "circomspect/circomspect.wasm?url"
 import circomLib from "../data/circomlib.zip?url"
-import circomWasmURL from "circom2/circom.wasm?url"
+import circomWasmURL from "circom2-pasta/circom.wasm?url"
 
 const baseNow = Math.floor((Date.now() - performance.now()) * 1e-3)
 
