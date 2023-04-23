@@ -23,6 +23,12 @@ type File = {
     active: boolean
 }
 
+export async function getInput(files: File[]) {
+    const { mainCode } = await initFs(files);
+    const input = /\/*\s*INPUT\s*=\s*(\{[\s\S]+\})\s*\*\//.exec(mainCode);
+    return input ? JSON.parse(input[1]) : {};
+}
+
 async function initFs(files: File[]) {
     const wasmFs = await wasmFsPromise
 
@@ -262,7 +268,7 @@ async function bootWasm(files: File[]) {
                     !opts.nosym && wasmFs.fs.readFileSync(`${filePrefix}.sym`),
             }).filter(([key, val]) => val)
         ),
-    })
+    });
 }
 
 function escapeRegExp(string: string) {

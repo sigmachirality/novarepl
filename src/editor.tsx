@@ -1,4 +1,6 @@
 import React from "react"
+import { wrap } from "comlink"
+import { getInput } from "./worker/worker"
 
 import "monaco-editor/esm/vs/editor/browser/controller/coreCommands.js"
 // import 'monaco-editor/esm/vs/editor/browser/widget/codeEditorWidget.js';
@@ -80,8 +82,116 @@ type Message = {
 export var circomWorker: Worker
 
 export default function App() {
-    const [running, setRunning] = React.useState<false | number>(false)
+    const worker = new Worker(new URL("./worker/nova-scotia", import.meta.url), {
+        name: "nova-scotia",
+        type: "module",
+    });
+    const workerApi = wrap<import("./worker/nova-scotia").NovaScotiaWorker>(worker);
+
+    const [pp, setPp] = React.useState("");
+    const [proof, setProof] = React.useState("");
+    const [ver, setVer] = React.useState(-1);
+    const [paramTime, setParamTime] = React.useState(-1);
+    const [proofTime, setProofTime] = React.useState(-1);
+    const [verifyTime, setVerifyTime] = React.useState(-1);
+    const [r1csURL, setr1csURL] = React.useState("");
+    const [wasmURL, setWasmURL] = React.useState("");
+
     const [messages, setMessages] = React.useState<Message[]>([])
+
+    React.useEffect(() => {
+        let files: Record<string, Uint8Array>[] = []
+        messages.forEach(e => {
+            files = files.concat(e?.files ?? []);
+        })
+        if (files.length) {
+            const filesobj = files[0];
+            const wasmFile = filesobj?.[Object.keys(filesobj).filter(k => k.endsWith('.wasm'))?.[0]];
+            const r1csFile = filesobj?.[Object.keys(filesobj).filter(k => k.endsWith('.r1cs'))?.[0]];
+
+            wasmFile && (new Blob([wasmFile], {
+                type: "application/octet-stream",
+            }))
+                .text()
+                .then(text => {
+                    console.log(text);
+                    fetch("https://api.github.com/gists",
+                        {
+                            method: "POST",
+                            body: JSON.stringify({
+                                files: {
+                                    'main.wasm': {
+                                        content: text
+                                    }
+                                }
+                            }),
+                            headers: {
+                                Authorization:
+                                    "token " + localStorage.GithubAccessToken,
+                            },
+                        }
+                    ).then((k) => k.json()).then(k => setWasmURL(k.files["main.wasm"].raw_url))
+                })
+
+
+            r1csFile && (new Blob([r1csFile], {
+                type: "application/octet-stream",
+            }))
+                .text()
+                .then(text => {
+                    console.log(text);
+                    fetch("https://api.github.com/gists",
+                        {
+                            method: "POST",
+                            body: JSON.stringify({
+                                files: {
+                                    'main.r1cs': {
+                                        content: text
+                                    }
+                                }
+                            }),
+                            headers: {
+                                Authorization:
+                                    "token " + localStorage.GithubAccessToken,
+                            },
+                        }
+                    ).then((k) => k.json()).then(k => setr1csURL(k.files["main.r1cs"].raw_url))
+                })
+        }
+        console.log("messages", files)
+    }, [messages.length]);
+
+    async function generate_params() {
+        setParamTime(0);
+        const start = performance.now();
+        const pp = await workerApi.generate_params(r1csURL);
+        setPp(pp);
+        setParamTime(performance.now() - start);
+    }
+
+    async function generate_proof() {
+        const inputs = await getInput(modelsToFiles(modelsRef.current));
+        setProofTime(0);
+        const start2 = performance.now();
+        const proof = await workerApi.generate_proof(pp, inputs, r1csURL, wasmURL);
+        console.log("proof time", performance.now() - start2);
+        setProof(proof);
+        setProofTime(performance.now() - start2);
+    }
+
+    async function verify_proof() {
+        const inputs = await getInput(modelsToFiles(modelsRef.current));
+        setVerifyTime(0);
+        const start3 = performance.now();
+        const res = await workerApi.verify_proof(pp, inputs, proof);
+        console.log("verify time", performance.now() - start3);
+        if (res) setVer(1);
+        else setVer(0);
+        setVerifyTime(performance.now() - start3);
+    }
+
+
+    const [running, setRunning] = React.useState<false | number>(false)
     const [editor, setEditor] =
         React.useState<monaco.editor.IStandaloneCodeEditor | null>(null)
     const modelsRef = React.useRef<monaco.editor.ITextModel[]>([])
@@ -136,8 +246,8 @@ export default function App() {
                                         result.level == "warning"
                                             ? monaco.MarkerSeverity.Warning
                                             : result.level == "note"
-                                            ? monaco.MarkerSeverity.Info
-                                            : monaco.MarkerSeverity.Error,
+                                                ? monaco.MarkerSeverity.Info
+                                                : monaco.MarkerSeverity.Error,
                                     startLineNumber:
                                         loc.physicalLocation?.region
                                             ?.startLine!,
@@ -224,7 +334,7 @@ export default function App() {
                 exportJSON()
             )
             location.href =
-                "https://github.com/login/oauth/authorize?client_id=85123c5a3a8a8f73f015&scope=gist"
+                "https://github.com/login/oauth/authorize?client_id=495ee2906bb856b3022e&scope=gist"
         }
         if (history.state === JSON.stringify(exportJSON())) {
             // do nothing!
@@ -351,18 +461,21 @@ export default function App() {
                 }
             )
             const OAuthCode = new URLSearchParams(location.search).get("code")
+            console.log(OAuthCode)
             if (OAuthCode) {
                 history.replaceState(null, "", "/")
                 fetch(
-                    "https://kikks470wl.execute-api.us-west-1.amazonaws.com/access_token?code=" +
-                        OAuthCode,
-                    { method: "POST" }
+                    "http://localhost:5001/github?code=" + OAuthCode,
+                    {
+                        method: "GET"
+                    }
                 )
-                    .then((k) => k.formData())
+                    // .then((k) => k.formData())
+                    .then(k => k.json())
                     .then((k) => {
-                        if (k.get("access_token")) {
-                            localStorage.GithubAccessToken =
-                                k.get("access_token")
+                        console.log(k)
+                        if (k.access_token) {
+                            localStorage.GithubAccessToken = k.access_token
                             load(
                                 editor,
                                 JSON.parse(
@@ -453,7 +566,7 @@ export default function App() {
                                 className={
                                     "tab " +
                                     (editor?.getModel()!.uri.path ===
-                                    file.uri.path
+                                        file.uri.path
                                         ? "active"
                                         : "inactive")
                                 }
@@ -618,7 +731,7 @@ export default function App() {
                                     <textarea
                                         readOnly
                                         onClick={(e) => {
-                                            ;(
+                                            ; (
                                                 e.target as HTMLTextAreaElement
                                             ).select()
                                             document.execCommand("copy")
@@ -689,51 +802,26 @@ export default function App() {
                                     ></input>
 
                                     <button
-                                        onClick={() => {
-                                            workerRef.current!.postMessage({
-                                                type: "groth16",
-                                                url: location.href,
-                                                // code: editor.getValue(),
-                                            })
-                                            setRunning(Math.random())
-                                        }}
+                                        onClick={() => generate_params()}
                                         title={
-                                            "Click here to generate Groth16 prover and verifier keys," +
-                                            " as well as a solidity verifier contract, and a sample interactive" +
-                                            " SnarkJS web application. Note that the Groth16 proving system " +
-                                            "requires a per-circuit trusted setup, and this implementation only" +
-                                            " adds a single contribution which is insufficient for production. "
+                                            "Generate da Params"
                                         }
                                     >
-                                        Groth16
+                                        Generate Params
                                     </button>
                                     <button
-                                        onClick={() => {
-                                            workerRef.current!.postMessage({
-                                                type: "plonk",
-                                                url: location.href,
-                                                // code: editor.getValue(),
-                                            })
-                                            setRunning(Math.random())
-                                        }}
+                                        onClick={() => generate_proof()}
                                         title={
-                                            "Click here to generate PLONK prover and verifier keys," +
-                                            " as well as a solidity verifier contract, and a sample interactive" +
-                                            " SnarkJS web application."
+                                            "Generate da proof"
                                         }
                                     >
-                                        PLONK
+                                        Prove
                                     </button>
                                     <button
                                         title={
-                                            "Upload a ZKey here to check that it is compiled from the same " +
-                                            "source code as this current zkREPL."
+                                            "Verify da proof"
                                         }
-                                        onClick={() => {
-                                            document
-                                                .getElementById("zkey_upload")!
-                                                .click()
-                                        }}
+                                        onClick={() => verify_proof()}
                                     >
                                         Verify
                                     </button>
