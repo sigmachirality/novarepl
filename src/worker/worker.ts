@@ -8,8 +8,8 @@ import {
 import * as binFileUtils from "@iden3/binfileutils"
 import { R1CSHeader, readR1csHeader } from "r1csfile"
 import { Scalar } from "ffjavascript"
-import groth16SolidityVerifierTemplate from "../data/groth16.sol?raw"
-import plonkSolidityVerifierTemplate from "../data/plonk.sol?raw"
+// import groth16SolidityVerifierTemplate from "../data/groth16.sol?raw"
+// import plonkSolidityVerifierTemplate from "../data/plonk.sol?raw"
 import appTemplate from "../data/demo.html?raw"
 
 let wtnsFile: Uint8Array
@@ -218,7 +218,7 @@ async function bootWasm(files: File[]) {
         if (witness) {
             const { initial, witness: witnessSignals } = inputObj;
             for (let i = 0; i < numIterations; i++) {
-                let parsedInputObj: any = { ...witnessSignals[i] ?? {} };
+                let parsedInputObj: any = { ...witnessSignals[i] };
                 if (i === 0) {
                     Object.keys(initial).forEach(key => {
                         parsedInputObj[`${key}_in`] = initial[key]
@@ -232,12 +232,12 @@ async function bootWasm(files: File[]) {
                 console.log(parsedInputObj);
                 wtnsFile = await witness.calculateWTNSBin(parsedInputObj, true)
             }
+            await getOutputs(numIterations);
         }
     } finally {
-        if (logs.length > 0) postMessage({ type: "log", text: logs.join("\n") })
+        // TODO: Add iteration num to logs
+        if (logs.length > 0) postMessage({ type: `log`, text: logs.join("\n") })
     }
-
-    await getOutputs(numIterations);
 
     // console.log(witness)
     // console.log(r1cs)
@@ -359,10 +359,10 @@ onmessage = (e: MessageEvent) => {
     //     generatePLONKProvingKey().catch((err) => {
     //         postMessage({ type: "fail", done: true, text: err.message })
     //     })
-    } else if (data.type === "verify") {
-        verifyZKey(data.data).catch((err) => {
-            postMessage({ type: "fail", done: true, text: err.message })
-        })
+    // } else if (data.type === "verify") {
+    //     verifyZKey(data.data).catch((err) => {
+    //         postMessage({ type: "fail", done: true, text: err.message })
+    //     })
     } else if (data.type === "analyze") {
         analyzeCircom(data.files).catch((err) => {
             console.error(err)
@@ -384,46 +384,46 @@ async function analyzeCircom(files: File[]) {
     console.timeEnd("start circomspect")
 }
 
-async function verifyZKey(zKeyData: ArrayBuffer) {
-    const { r1cs, r1csFile } = await getR1CS()
+// async function verifyZKey(zKeyData: ArrayBuffer) {
+//     const { r1cs, r1csFile } = await getR1CS()
 
-    const ptauArray = await fetchPot(r1cs.nConstraints)
+//     const ptauArray = await fetchPot(r1cs.nConstraints)
 
-    const [logger, zKeyLog] = createLogger()
+//     const [logger, zKeyLog] = createLogger()
 
-    const initFileName = { type: "bigMem" }
-    const circuitHash = await zKey.newZKey(
-        r1csFile,
-        ptauArray,
-        initFileName,
-        logger
-    )
+//     const initFileName = { type: "bigMem" }
+//     const circuitHash = await zKey.newZKey(
+//         r1csFile,
+//         ptauArray,
+//         initFileName,
+//         logger
+//     )
 
-    // clear our log
-    while (zKeyLog.pop()) {}
+//     // clear our log
+//     while (zKeyLog.pop()) {}
 
-    console.log("circuitHash", circuitHash)
+//     console.log("circuitHash", circuitHash)
 
-    const result = await zKey.verifyFromInit(
-        initFileName,
-        ptauArray,
-        new Uint8Array(zKeyData),
-        logger
-    )
+//     const result = await zKey.verifyFromInit(
+//         initFileName,
+//         ptauArray,
+//         new Uint8Array(zKeyData),
+//         logger
+//     )
 
-    // const circuitHashStr = Buffer.from(circuitHash).toString("hex")
+//     // const circuitHashStr = Buffer.from(circuitHash).toString("hex")
 
-    postMessage({
-        type: "verified",
-        done: true,
-        text: result
-            ? `✅ Successfully verified zkey matches circuit`
-            : "❌ Circuit does not match zkey",
-    })
+//     postMessage({
+//         type: "verified",
+//         done: true,
+//         text: result
+//             ? `✅ Successfully verified zkey matches circuit`
+//             : "❌ Circuit does not match zkey",
+//     })
 
-    if (zKeyLog.length > 0)
-        postMessage({ type: "log", text: zKeyLog.join("\n") })
-}
+//     if (zKeyLog.length > 0)
+//         postMessage({ type: "log", text: zKeyLog.join("\n") })
+// }
 
 async function getR1CS() {
     const wasmFs = await wasmFsPromise
