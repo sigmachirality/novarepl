@@ -1,4 +1,20 @@
-import { defineConfig } from "vite"
+import { defineConfig, Plugin } from "vite"
+import wasm from "vite-plugin-wasm";
+import topLevelAwait from "vite-plugin-top-level-await";
+
+const crossOriginIsolatedPlugin: Plugin = {
+  name: 'log-request-middleware',
+  configureServer(server) {
+      server.middlewares.use((_, res, next) => {
+          res.setHeader("Access-Control-Allow-Origin", "*");
+          res.setHeader("Access-Control-Allow-Methods", "GET");
+          res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+          res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+          res.setHeader("Cross-Origin-Resource-Policy", "same-site");
+          next();
+      });
+  }
+};
 
 export default defineConfig({
     resolve: {
@@ -23,5 +39,17 @@ export default defineConfig({
     },
     optimizeDeps: {
         esbuildOptions: { target: "es2020", supported: { bigint: true } },
-    },
+        exclude: ["nova_scotia_browser"]
+      },
+    plugins: [
+      wasm(),
+      topLevelAwait(),
+      crossOriginIsolatedPlugin
+    ],
+    worker: {
+      plugins: [
+        wasm(),
+        topLevelAwait(),
+      ]
+    }
 })
