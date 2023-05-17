@@ -91,9 +91,6 @@ export default function App() {
     const [pp, setPp] = React.useState("");
     const [proof, setProof] = React.useState("");
     const [ver, setVer] = React.useState(-1);
-    const [paramTime, setParamTime] = React.useState(-1);
-    const [proofTime, setProofTime] = React.useState(-1);
-    const [verifyTime, setVerifyTime] = React.useState(-1);
     const [r1csURL, setr1csURL] = React.useState("");
     const [wasmURL, setWasmURL] = React.useState("");
 
@@ -162,32 +159,33 @@ export default function App() {
     }, [messages.length]);
 
     async function generate_params() {
-        setParamTime(0);
+        setRunning(Math.random() + 1)
         const start = performance.now();
         const pp = await workerApi.generate_params(r1csURL);
         setPp(pp);
-        setParamTime(performance.now() - start);
+        setMessages(messages => [...messages, { type: 'Public Params', text: `Generated public parameters in ${((performance.now() - start) / 1000).toFixed(2)}s`}])
+        setRunning(false)
     }
 
     async function generate_proof() {
+        setRunning(Math.random() + 1)
         const inputs = await getInput(modelsToFiles(modelsRef.current));
-        setProofTime(0);
-        const start2 = performance.now();
+        const start = performance.now();
         const proof = await workerApi.generate_proof(pp, inputs, r1csURL, wasmURL);
-        console.log("proof time", performance.now() - start2);
         setProof(proof);
-        setProofTime(performance.now() - start2);
+        setMessages(messages => [...messages, { type: 'Proving', text: `Generated compressed SPARTAN proof in ${((performance.now() - start) / 1000).toFixed(2)}s`}])
+        setRunning(false)
     }
 
     async function verify_proof() {
+        setRunning(Math.random() + 1)
         const inputs = await getInput(modelsToFiles(modelsRef.current));
-        setVerifyTime(0);
-        const start3 = performance.now();
+        const start = performance.now();
         const res = await workerApi.verify_proof(pp, inputs, proof);
-        console.log("verify time", performance.now() - start3);
         if (res) setVer(1);
         else setVer(0);
-        setVerifyTime(performance.now() - start3);
+        setMessages(messages => [...messages, { type: 'Verification', text: `Verified compressed SPARTAN proof in ${((performance.now() - start) / 1000).toFixed(2)}s`}])
+        setRunning(false)
     }
 
 
